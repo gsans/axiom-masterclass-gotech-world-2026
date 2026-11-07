@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "outDir": "./dist"
   },
-  "include": ["00-setup/**/*", "labs/**/*"]
+  "include": ["labs/**/*"]
 }

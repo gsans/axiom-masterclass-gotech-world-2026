@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "verify": "node 00-setup/verify.mjs"
+    "verify": "node verify.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.0.0",

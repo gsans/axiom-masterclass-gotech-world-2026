@@ -1,4 +1,4 @@
-// Setup check: no npm install needed. Run with `npm run verify`.
+// Setup check: no npm install needed. Run from the repo folder with `npm run verify`.
 import { readFileSync, existsSync } from 'node:fs';
 
 const fail = (msg) => { console.error(`❌ ${msg}`); process.exit(1); };
