@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "verify": "tsx 00-setup/verify.ts"
+    "verify": "node 00-setup/verify.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.0.0",
