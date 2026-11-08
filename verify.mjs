@@ -50,7 +50,7 @@ if (!res.ok) {
   if (res.status === 503) fail(busy(`${model} is overloaded right now.`));
   if (res.status === 400 || res.status === 403) fail(`Google rejected the key. Copy it again from https://aistudio.google.com/apikey\n   (${reason})`);
   if (res.status === 404) fail(`Model "${model}" not found. (${reason})`);
-  if (res.status === 429) fail(`Rate limit or daily quota reached for ${model}. Wait a minute and retry, or use gemini-3.5-flash-lite in .env.\n   (${reason})`);
+  if (res.status === 429) fail(`Rate limit or daily quota reached for ${model}. Wait a minute and retry. If it persists, you've used today's quota for this model: try again tomorrow, or pick another model in .env.\n   (${reason})`);
   fail(`API error ${res.status}: ${reason}`);
 }
 
