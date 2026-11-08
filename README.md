@@ -69,4 +69,4 @@ At the start of each block, run `git pull` in the repo folder to get the new lab
 * `verify.mjs`: the key check that `npm run verify` runs
 * `manuals/`: setup guide and field manual
 * `notebooks/`: reference notebooks for each block (read-only)
-* `labs/`: block 1–4 labs (released live on Tuesday)
+* `labs/`: appears on Tuesday, when the labs are released
