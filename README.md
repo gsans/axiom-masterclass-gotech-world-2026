@@ -23,6 +23,9 @@ Download **Antigravity IDE (Standalone)** from [antigravity.google/download](htt
 2. Click **Create API key** and copy it.
 3. Keep it private. Don't post it in chat or commit it to Git.
 
+> [!WARNING]
+> **Free keys get about 60 requests a day with Gemini 3.5 Flash Lite, the model we use.** One question to a lab agent uses 2 to 6 requests. Don't overdo it: run the setup check once, and save the rest for the workshop.
+
 ### 3. Get the repo and check your key
 
 You need [Node.js](https://nodejs.org) v20 or newer and Git. Open a terminal (Antigravity's built-in terminal is fine) and run these one at a time:

@@ -9,4 +9,4 @@
 
 ## Stack
 * Node.js v20+, strict TypeScript, `@google/adk`, `@modelcontextprotocol/sdk`.
-* Model for the labs: `gemini-3.8-flash`. Gemini 4 Argon is available in Antigravity 2.0.
+* Model for the labs: `gemini-3.5-flash-lite`. `gemini-3.8-flash` also works. Gemini 4 Argon is available in Antigravity 2.0.
