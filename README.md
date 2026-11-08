@@ -34,6 +34,13 @@ git clone https://github.com/gsans/axiom-masterclass-gotech-world-2026.git
 cd axiom-masterclass-gotech-world-2026
 ```
 ```bash
+npm install
+```
+
+> [!TIP]
+> `npm install` downloads about 380 MB and can take a few minutes. Run it on a good connection before you travel, because conference wifi will be slow.
+
+```bash
 cp .env.example .env
 ```
 
@@ -44,8 +51,6 @@ npm run verify
 ```
 
 ✅ **Done** when you see `Ready for Tuesday`. If you see ❌, the message tells you what to fix.
-
-You don't need `npm install` yet; we'll run it together on Tuesday.
 
 ## On the day
 

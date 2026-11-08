@@ -8,5 +8,5 @@
 * **10 Every Input is a Stranger**: Validate all MCP and A2A payloads.
 
 ## Stack
-* Node.js v22+, strict TypeScript, `@google/adk`, `@modelcontextprotocol/sdk`.
-* Models: `gemini-3.8-flash`, `gemini-3.5-flash-lite`, `gemini-4-argon`.
+* Node.js v20+, strict TypeScript, `@google/adk`, `@modelcontextprotocol/sdk`.
+* Model for the labs: `gemini-3.8-flash`. Gemini 4 Argon is available in Antigravity 2.0.
