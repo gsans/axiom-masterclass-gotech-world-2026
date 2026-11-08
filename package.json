@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "verify": "node verify.mjs",
-    "web": "adk web labs"
+    "web": "adk web labs --bundle false"
   },
   "dependencies": {
     "@google/adk": "2.4.0",
