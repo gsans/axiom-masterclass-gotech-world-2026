@@ -59,6 +59,10 @@ npm run verify
 
 At the start of each block, run `git pull` in the repo folder to get the new lab.
 
+## Mission Control demo
+
+The Axiom Software Factory from the closing demo: a coding agent in its own Git worktree, a human gate, deterministic checks and an independent reviewer, driven by clicks or voice. It needs Python as well as Node. [Run it yourself](./mission-control/README.md).
+
 ## Reading (optional)
 
 * [Setup guide (PDF)](./manuals/Axiom-Masterclass-Setup-Instructions.pdf)
@@ -70,3 +74,4 @@ At the start of each block, run `git pull` in the repo folder to get the new lab
 * `manuals/`: setup guide and field manual
 * `notebooks/`: reference notebooks for each block (read-only)
 * `labs/`: appears on Tuesday, when the labs are released
+* `mission-control/`: the Mission Control demo, with its own setup

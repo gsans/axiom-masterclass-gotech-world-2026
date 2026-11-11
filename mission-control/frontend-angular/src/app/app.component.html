@@ -1,0 +1,939 @@
+<main
+  class="app"
+  [class.is-gate]="isWaitingForElicitation()"
+  [class.is-armed]="chaosInjectArmed()"
+>
+  <!-- Top bar: identity, mandate, lens, shift -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M12 2 22.5 21.5h-5.6L12 12.2 7.1 21.5H1.5z" />
+      </svg>
+      <span class="brand-name">Axiom <span>Factory</span></span>
+    </div>
+
+    <div class="mandate" title="Capital mandate: burn against budget">
+      <b>{{ activeFences()?.mandate?.id || 'MND-2027-Q4' }}</b>
+      <span class="meter"><i [style.width.%]="mandatePercent()"></i></span>
+      <span>${{ (activeFences()?.mandate?.burn_usd ?? 4.12).toFixed(2) }}/${{
+        (activeFences()?.mandate?.token_budget_usd ?? 50).toFixed(0)
+      }}</span>
+    </div>
+
+    <select
+      class="select select-auto"
+      [ngModel]="activeLens()"
+      (ngModelChange)="updateBackendToolbox({ active_lens: $event })"
+      title="Operator Expertise Lens"
+    >
+      <option value="SEC_OPS">Lens: SEC_OPS</option>
+      <option value="ARCH_LEAD">Lens: ARCH_LEAD</option>
+      <option value="FRONTEND_LEAD">Lens: FRONTEND_LEAD</option>
+      <option value="NIGHT_SHIFT_BOT">Lens: NIGHT_SHIFT_BOT</option>
+    </select>
+
+    <select
+      class="select select-auto"
+      [ngModel]="activeShift()"
+      (ngModelChange)="updateBackendToolbox({ active_shift: $event })"
+      title="Shift Compute Schedule"
+    >
+      <option value="SHIFT_1_DAY">Day Shift</option>
+      <option value="SHIFT_2_SWING">Swing Shift</option>
+      <option value="SHIFT_3_NIGHT">Night Shift</option>
+    </select>
+
+    <div class="topbar-end">
+      <button
+        type="button"
+        class="btn btn-sm"
+        [class.btn-on]="consoleDrawerOpen()"
+        (click)="toggleConsoleDrawer()"
+        [attr.aria-pressed]="consoleDrawerOpen()"
+      >
+        <svg class="i"><use href="#i-terminal" /></svg>
+        Console <span class="mono">{{ logger.logs().length }}</span>
+      </button>
+
+      @if (toolbox()?.stageUnlock ?? true) {
+        <button
+          type="button"
+          class="btn btn-sm"
+          [class.btn-on]="drawerOpen()"
+          (click)="toggleDrawer()"
+          [attr.aria-pressed]="drawerOpen()"
+        >
+          <svg class="i"><use href="#i-settings-2" /></svg>
+          Settings
+        </button>
+      }
+    </div>
+  </header>
+
+  <!-- Hidden render canvas + floating video preview -->
+  <canvas #renderCanvas style="display: none"></canvas>
+
+  <div class="pip" [style.display]="activeVideoStream() ? 'flex' : 'none'">
+    <div class="between">
+      <span class="label">
+        {{
+          screenCaptureService.isStreamingSignal()
+            ? 'Sharing screen with Gemini 3.8 Live'
+            : 'Sharing webcam with Gemini 3.8 Live'
+        }}
+      </span>
+      <button
+        type="button"
+        class="btn btn-sm btn-ghost"
+        (click)="
+          screenCaptureService.isStreamingSignal()
+            ? toggleScreenCaptureStream()
+            : toggleWebCamStream()
+        "
+      >
+        <svg class="i"><use href="#i-x" /></svg>
+        Stop
+      </button>
+    </div>
+    <video #myVideo autoplay muted playsinline></video>
+  </div>
+
+  <!-- Live debug console drawer -->
+  @if (consoleDrawerOpen()) {
+    <section class="drawer">
+      <app-logger></app-logger>
+    </section>
+  }
+
+  <!-- Settings / toolbox drawer -->
+  @if (drawerOpen() && (toolbox()?.stageUnlock ?? true)) {
+    <section class="drawer">
+      <div class="drawer-grid">
+        <div class="field">
+          <span class="label">Model gateway route</span>
+          <select
+            class="select"
+            [ngModel]="activeGateway()"
+            (ngModelChange)="updateBackendToolbox({ gateway_mode: $event })"
+          >
+            <option value="CLOUD_PRIMARY">CLOUD_PRIMARY (Claude + Codex)</option>
+            <option value="OPENROUTER_FALLBACK">OPENROUTER_FALLBACK</option>
+            <option value="AIRGAP_LOCAL_LOCKDOWN">AIRGAP_LOCAL_LOCKDOWN (Local GPU)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <span class="label">Architecture track preset</span>
+          <select
+            class="select"
+            [ngModel]="activePresetKey()"
+            (ngModelChange)="updateBackendToolbox({ sponsor_preset: $event })"
+          >
+            <option value="DEFAULT_CLAUDE_CODEX">Anthropic Claude + OpenAI Codex</option>
+            <option value="COGNITION_DEVIN">Cognition (Devin Worktree + Review)</option>
+            <option value="TESSL_SPEC">Tessl (Spec-Driven Context)</option>
+            <option value="COHERE_ENTERPRISE">Cohere (Command-A Enterprise)</option>
+            <option value="PIPECAT_AGUI">Daily Pipecat + AG-UI</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <span class="label">Stage 1 oracle test mode</span>
+          <button
+            type="button"
+            class="btn btn-sm btn-left"
+            [class.btn-armed]="chaosInjectArmed()"
+            (click)="toggleChaosArmed()"
+          >
+            <svg class="i"><use [attr.href]="chaosInjectArmed() ? '#i-flask-conical' : '#i-shield-check'" /></svg>
+            {{
+              chaosInjectArmed()
+                ? 'Chaos payload armed (eval() + AWS key)'
+                : 'Clean mode (click to arm chaos probe)'
+            }}
+          </button>
+        </div>
+      </div>
+    </section>
+  }
+
+  <div class="workspace">
+    <!-- Sidebar: launchers, decision inbox, context gauge -->
+    <aside class="side">
+      <div class="launch">
+        <button
+          type="button"
+          class="launch-btn"
+          [class.on]="selectedTaskId() === 'LIVE_DISPATCH' && activeTab() !== 'WHITEBOARD_TO_PR'"
+          (click)="selectNewDispatch()"
+        >
+          <svg class="i"><use href="#i-plus" /></svg>
+          New worktree run
+          <kbd>C</kbd>
+        </button>
+
+        <button
+          type="button"
+          class="launch-btn"
+          [class.on]="activeTab() === 'WHITEBOARD_TO_PR'"
+          (click)="selectNewDispatch(); setTab('WHITEBOARD_TO_PR')"
+        >
+          <svg class="i"><use href="#i-presentation" /></svg>
+          Whiteboard to PR
+          <small>Cam / Tab / Voice</small>
+        </button>
+
+        <button
+          type="button"
+          class="launch-btn"
+          [class.on]="activeTab() === 'AGUI_CHAT'"
+          (click)="selectNewDispatch(); setTab('AGUI_CHAT')"
+        >
+          <svg class="i"><use href="#i-message-square" /></svg>
+          AG-UI Copilot
+          <small>In-Chat UI</small>
+        </button>
+      </div>
+
+      <div class="inbox-head">
+        <span class="label">Decision inbox</span>
+        <span class="label">{{ inboxItems().length }}</span>
+      </div>
+
+      <div class="inbox">
+        @for (section of inboxSections; track section.key) {
+          @if (itemsForSection(section.statuses); as sectionItems) {
+            @if (sectionItems.length > 0) {
+              <div class="inbox-group">
+                <span class="label">{{ section.label }} ({{ sectionItems.length }})</span>
+
+                @for (item of sectionItems; track item.id) {
+                  <button
+                    type="button"
+                    class="task"
+                    [class.on]="selectedTaskId() === item.id"
+                    [attr.data-tone]="statusTone(item.status)"
+                    (click)="selectTask(item)"
+                  >
+                    <div class="between">
+                      <span class="task-code"><span class="dot"></span>{{ item.code }}</span>
+                      <span class="task-time">{{ item.updatedAt }}</span>
+                    </div>
+                    <div class="task-title">{{ item.title }}</div>
+                  </button>
+                }
+              </div>
+            }
+          }
+        }
+      </div>
+
+      <div class="gauge">
+        <div class="between">
+          <span class="label">Context window</span>
+          <span class="gauge-value">
+            {{ ((tokenWeather()?.tokensUsed || 4200) / 1000).toFixed(1) }}k / 150k
+          </span>
+        </div>
+        <span class="meter"><i [style.width.%]="contextPercent()"></i></span>
+        <div class="gauge-zone">{{ tokenWeather()?.zone || 'FRESH_WINDOW (Smart Zone)' }}</div>
+      </div>
+    </aside>
+
+    <div class="stage">
+      <!-- A: a completed task from the inbox -->
+      @if (isViewingHistoricalTask() && selectedInboxItem(); as task) {
+        <div class="between">
+          <div class="row">
+            <span class="tag">{{ task.code }}</span>
+            <span class="tag tone" [attr.data-tone]="statusTone(task.status)">
+              {{ statusDot(task.status).label }}
+            </span>
+            <span class="mono branch" style="font-size: 0.74rem">
+              <svg class="i"><use href="#i-git-branch" /></svg>{{ task.branch }}
+            </span>
+          </div>
+
+          <button type="button" class="btn btn-sm" (click)="selectNewDispatch()">
+            <svg class="i"><use href="#i-arrow-left" /></svg>
+            Back to active run
+          </button>
+        </div>
+
+        <h1 class="hero-title" style="font-size: clamp(1.8rem, 2.8vw, 2.9rem)">{{ task.title }}</h1>
+
+        <div class="card stack">
+          <div class="between">
+            <span class="card-title">Verification summary: {{ task.score }}/100</span>
+            <span class="tag">{{ task.hash }}</span>
+          </div>
+          <div class="body md" [innerHTML]="task.summary | md"></div>
+          @if (task.diffPreview) {
+            <pre class="diff">@for (line of diffLines(task.diffPreview); track $index) {<span [class]="line.kind">{{ line.text || ' ' }}</span>}</pre>
+          }
+        </div>
+      } @else {
+        <!-- B: active run / new dispatch -->
+        <section class="card hero">
+          <div class="hazard"></div>
+          <div class="between">
+            <div class="row">
+              <span class="label">
+                {{
+                  snapshot()?.runId
+                    ? currentShiftCode() + ' (' + snapshot()!.runId + ')'
+                    : 'Next shift run: ' + currentShiftCode()
+                }}
+              </span>
+              <span class="label">Worker: {{ runModels().worker }}</span>
+              <span class="label">Reviewer: {{ runModels().reviewer }}</span>
+            </div>
+            <span class="phase" [attr.data-tone]="phaseTone()">
+              <span class="dot"></span>{{ snapshot()?.phase || 'READY TO DISPATCH' }}
+            </span>
+          </div>
+
+          <h1 class="hero-title" [attr.data-tone]="phaseTone()">{{ phaseTitle() }}</h1>
+
+          <ol class="rail" aria-label="Run progress">
+            @for (step of pipeline(); track step.name) {
+              <li class="rail-step" [attr.data-state]="step.state">
+                <span class="rail-node"></span>
+                <span class="rail-name">{{ step.name }}</span>
+              </li>
+            }
+          </ol>
+
+          <div class="composer">
+            <input
+              class="input input-mono"
+              [ngModel]="targetRepo()"
+              (ngModelChange)="setTargetRepo($event)"
+              placeholder="./sample-repo"
+              title="Target Git Repository"
+            />
+            <input
+              class="input"
+              [ngModel]="taskPrompt()"
+              (ngModelChange)="setTaskPrompt($event)"
+              placeholder="Describe the subgoal to run inside an isolated Git worktree..."
+            />
+            <button
+              type="button"
+              class="round dice"
+              (click)="rollScenario()"
+              [disabled]="isRunning()"
+              title="Suggest a scenario"
+              aria-label="Suggest a scenario"
+            >
+              <svg class="i"><use href="#i-dices" /></svg>
+            </button>
+            <button
+              type="button"
+              class="btn"
+              [class.btn-go]="!chaosInjectArmed()"
+              [class.btn-stop]="chaosInjectArmed()"
+              (click)="startFactoryRun()"
+              [disabled]="isRunning()"
+            >
+              <svg class="i"><use [attr.href]="chaosInjectArmed() ? '#i-flask-conical' : '#i-rocket'" /></svg>
+              {{ isRunning() ? 'Running...' : chaosInjectArmed() ? 'Run chaos probe' : 'Dispatch run' }}
+            </button>
+          </div>
+
+          <div class="scenarios">
+            @for (scenario of scenarios; track scenario.id) {
+              <button
+                type="button"
+                class="chip"
+                [class.on]="activeScenario()?.id === scenario.id"
+                (click)="pickScenario(scenario)"
+                [disabled]="isRunning()"
+              >
+                <svg class="i"><use [attr.href]="scenario.icon" /></svg>
+                {{ scenario.label }}
+              </button>
+            }
+            @if (activeScenario(); as scenario) {
+              <span class="scenario-hint">{{ scenario.expect }}</span>
+            }
+          </div>
+        </section>
+
+        <nav class="tabs">
+          <button
+            type="button"
+            class="tab"
+            [class.on]="activeTab() === 'OVERVIEW_ELICITATION'"
+            (click)="setTab('OVERVIEW_ELICITATION')"
+          >
+            Worktree and approvals
+            @if (isWaitingForElicitation()) {
+              <span class="dot"></span>
+            }
+          </button>
+
+          <button
+            type="button"
+            class="tab"
+            [class.on]="activeTab() === 'AGUI_CHAT'"
+            (click)="setTab('AGUI_CHAT')"
+          >
+            AG-UI Copilot <span class="count">{{ chatThread().length }}</span>
+            @if (isWaitingForElicitation()) {
+              <span class="dot"></span>
+            }
+          </button>
+
+          <button
+            type="button"
+            class="tab"
+            [class.on]="activeTab() === 'WHITEBOARD_TO_PR'"
+            (click)="setTab('WHITEBOARD_TO_PR')"
+          >
+            Whiteboard to PR
+            @if (whiteboardPlan()) {
+              <svg class="i" style="color: var(--go)"><use href="#i-check" /></svg>
+            }
+          </button>
+
+          <button
+            type="button"
+            class="tab"
+            [class.on]="activeTab() === 'VERIFICATION_DIFF'"
+            (click)="setTab('VERIFICATION_DIFF')"
+          >
+            Checking the work
+            @if (snapshot()?.verification; as v) {
+              <span class="count tone" [attr.data-tone]="v.verdict === 'PASS' ? 'go' : 'stop'">
+                {{ v.verdict }}
+              </span>
+            }
+          </button>
+
+          <button
+            type="button"
+            class="tab"
+            [class.on]="activeTab() === 'FENCES_SKILLS'"
+            (click)="setTab('FENCES_SKILLS')"
+          >
+            Fences and skills <span class="count">{{ trustedSkills().length }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="tab"
+            [class.on]="activeTab() === 'EVENT_STREAM'"
+            (click)="setTab('EVENT_STREAM')"
+          >
+            Live event log <span class="count">{{ agUiEvents().length }}</span>
+          </button>
+        </nav>
+
+        <!-- AG-UI chat -->
+        @if (activeTab() === 'AGUI_CHAT') {
+          <app-ag-ui-chat
+            (dispatchRun)="handleChatDispatch($event)"
+            (scanWhiteboard)="handleChatWhiteboardScan()"
+            (askCopilot)="handleAskCopilot($event)"
+            (resolveGate)="sendResumeSignal($event.decision, $event.source, $event.notes)"
+          ></app-ag-ui-chat>
+        }
+
+        <!-- Whiteboard to PR -->
+        @if (activeTab() === 'WHITEBOARD_TO_PR') {
+          <div class="stack-l">
+            <div class="card stack">
+              <div class="between">
+                <div class="stack" style="gap: 0.3rem">
+                  <span class="card-title">From whiteboard to verified PR</span>
+                  <span class="body">
+                    Hold a diagram up to your webcam or phone, share a diagram tab, or say
+                    <span class="say">scan whiteboard</span> /
+                    <span class="say">whiteboard to PR</span>
+                  </span>
+                </div>
+
+                <span class="tag tag-info">
+                  {{
+                    screenCaptureService.isStreamingSignal()
+                      ? 'SOURCE: SCREEN TAB'
+                      : webcamService.isStreamingSignal()
+                      ? 'SOURCE: WEBCAM / MOBILE'
+                      : whiteboardPreviewDataUrl()
+                      ? 'SOURCE: CAPTURED FRAME'
+                      : 'SOURCE: READY (VOICE / CAM / TAB)'
+                  }}
+                </span>
+              </div>
+
+              <div class="wb-actions">
+                <button
+                  type="button"
+                  class="btn"
+                  [class.btn-on]="webcamService.isStreamingSignal()"
+                  (click)="toggleWebCamStream()"
+                >
+                  <svg class="i"><use [attr.href]="webcamService.isStreamingSignal() ? '#i-square' : '#i-video'" /></svg>
+                  {{ webcamService.isStreamingSignal() ? 'Stop webcam' : 'Webcam' }}
+                </button>
+
+                <button
+                  type="button"
+                  class="btn"
+                  [class.btn-on]="screenCaptureService.isStreamingSignal()"
+                  (click)="toggleScreenCaptureStream()"
+                >
+                  <svg class="i"><use [attr.href]="screenCaptureService.isStreamingSignal() ? '#i-square' : '#i-monitor'" /></svg>
+                  {{ screenCaptureService.isStreamingSignal() ? 'Stop screen share' : 'Share diagram tab' }}
+                </button>
+
+                <label
+                  class="btn"
+                  title="Mobile rear camera capture or stage fallback image upload — automatically synthesizes and dispatches run"
+                >
+                  <svg class="i"><use href="#i-smartphone" /></svg>
+                  <span>Upload or use phone</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    (change)="onWhiteboardFileSelected($event)"
+                    style="display: none"
+                  />
+                </label>
+
+                <span class="wb-divider"></span>
+
+                <button
+                  type="button"
+                  class="btn btn-go"
+                  (click)="scanWhiteboardDiagram({ autoDispatch: true })"
+                  [disabled]="whiteboardScanning() || isRunning()"
+                >
+                  <svg class="i"><use href="#i-rocket" /></svg>
+                  {{ whiteboardScanning() ? 'Scanning and dispatching...' : 'Scan and dispatch' }}
+                </button>
+
+                <button
+                  type="button"
+                  class="btn btn-info"
+                  (click)="scanWhiteboardDiagram({ autoDispatch: false })"
+                  [disabled]="whiteboardScanning()"
+                >
+                  <svg class="i"><use href="#i-scan-search" /></svg>
+                  Scan only
+                </button>
+              </div>
+            </div>
+
+            <div class="grid-wb">
+              <div class="card stack">
+                <span class="card-title">
+                  <svg class="i"><use href="#i-image" /></svg>
+                  Captured diagram
+                </span>
+                @if (whiteboardPreviewDataUrl(); as previewUrl) {
+                  <img
+                    class="frame"
+                    [src]="previewUrl"
+                    alt="Captured whiteboard or architecture diagram"
+                  />
+                } @else {
+                  <div class="empty-box">
+                    Start <strong>Webcam</strong> or <strong>Screen Tab</strong>, upload a diagram
+                    image, or say <span class="say">scan whiteboard</span> to synthesize the
+                    architecture spec.
+                  </div>
+                }
+              </div>
+
+              <div class="card stack">
+                <div class="between">
+                  <span class="card-title">
+                    <svg class="i"><use href="#i-dna" /></svg>
+                    Task and PR spec
+                  </span>
+                  @if (whiteboardPlan()?.interactionId; as intId) {
+                    <span class="tag tag-info">{{ intId.slice(0, 18) }}...</span>
+                  }
+                </div>
+
+                @if (whiteboardPlan(); as plan) {
+                  <div class="well pr-title">
+                    <span class="label">PR title ({{ plan.source }})</span>
+                    <div>{{ plan.prTitle }}</div>
+                  </div>
+
+                  <div class="stack" style="gap: 0.4rem">
+                    <span class="label">Detected components ({{ plan.detectedComponents.length }})</span>
+                    <div class="tags">
+                      @for (comp of plan.detectedComponents; track comp) {
+                        <span class="tag tag-info">{{ comp }}</span>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="stack" style="gap: 0.4rem">
+                    <span class="label">Detected flows</span>
+                    <ul class="flows">
+                      @for (flow of plan.detectedFlows; track flow) {
+                        <li>{{ flow }}</li>
+                      }
+                    </ul>
+                  </div>
+
+                  <div class="well stack" style="gap: 0.3rem">
+                    <span class="label">Dispatched worktree prompt</span>
+                    <span class="body md-inline" style="font-size: 0.86rem" [innerHTML]="plan.taskPrompt | md: 'inline'"></span>
+                  </div>
+                } @else {
+                  <div class="empty">
+                    No diagram scanned yet. Use <strong>Scan and dispatch</strong> or say
+                    <span class="say">scan whiteboard</span> /
+                    <span class="say">whiteboard to PR</span> to extract components and populate
+                    the worktree run.
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Worktree & approvals -->
+        @if (activeTab() === 'OVERVIEW_ELICITATION') {
+          <div class="stack-l">
+            @if (whiteboardPlan(); as wb) {
+              <div class="card wb-banner">
+                <div class="between">
+                  <div class="row">
+                    <span class="label" style="color: var(--info)">Whiteboard to PR is active</span>
+                    <span class="card-title">{{ wb.diagramTitle }}</span>
+                  </div>
+                  <span class="tag">Target: {{ wb.targetFile }}</span>
+                </div>
+                <div class="kv">PR: {{ wb.prTitle }}</div>
+                <div class="tags">
+                  @for (comp of wb.detectedComponents; track comp) {
+                    <span class="tag">{{ comp }}</span>
+                  }
+                </div>
+              </div>
+            }
+
+            <div class="card gate" [class.open]="isWaitingForElicitation()">
+              <div class="between">
+                <span class="card-title">
+                  <svg class="i"><use href="#i-fence" /></svg>
+                  {{ activePreset().station3 }}
+                </span>
+                <span class="tag">Gate: {{ snapshot()?.elicitation?.status || 'IDLE' }}</span>
+              </div>
+
+              @if (snapshot()?.elicitation?.question; as q) {
+                <div class="gate-q">“<span class="md-inline" [innerHTML]="q | md: 'inline'"></span>”</div>
+              } @else {
+                <div class="empty">
+                  Press <strong>Dispatch run</strong> to provision an isolated Git worktree and
+                  trigger the MCP boundary gate.
+                </div>
+              }
+
+              <div class="decisions">
+                <button
+                  type="button"
+                  class="decision approve"
+                  (click)="
+                    sendResumeSignal(
+                      'APPROVE',
+                      'HTTP_MISSION_CONTROL',
+                      'Operator clicked Approve in Mission Control'
+                    )
+                  "
+                  [disabled]="!isWaitingForElicitation()"
+                >
+                  <b><svg class="i"><use href="#i-check" /></svg>Approve exception</b>
+                  <small>say “approve”</small>
+                </button>
+
+                <button
+                  type="button"
+                  class="decision promote"
+                  (click)="
+                    sendResumeSignal(
+                      'PROMOTE_TO_SKILL',
+                      'UI_SKILL_PROMOTER',
+                      'Operator promoted Layer 2 fallback to Layer 1 .claude/skills/SKILL.md'
+                    )
+                  "
+                  [disabled]="!isWaitingForElicitation()"
+                >
+                  <b><svg class="i"><use href="#i-zap" /></svg>Approve and promote to skill</b>
+                  <small>say “promote to skill”</small>
+                </button>
+
+                <button
+                  type="button"
+                  class="decision reject"
+                  (click)="
+                    sendResumeSignal(
+                      'REJECT_AND_HARDEN',
+                      'VOICE_OR_UI_SECOPS_LENS',
+                      'Operator rejected soft tripwire and calcified FENCE-001 into HARD_LOCK'
+                    )
+                  "
+                  [disabled]="!isWaitingForElicitation()"
+                >
+                  <b><svg class="i"><use href="#i-lock" /></svg>Reject and harden FENCE-001</b>
+                  <small>say “reject and harden”</small>
+                </button>
+              </div>
+
+              @if (snapshot()?.elicitation?.resolution; as res) {
+                <div class="resolved">
+                  <svg class="i"><use href="#i-check" /></svg>
+                  {{ res.decision }} via {{ res.source }}
+                </div>
+              }
+            </div>
+
+            <div class="card quiet stack">
+              <span class="card-title">
+                <svg class="i"><use href="#i-git-branch" /></svg>
+                {{ activePreset().station2 }}
+              </span>
+              @if (snapshot()?.worktree; as wt) {
+                <div class="kv">
+                  <div>Path: {{ wt.worktree_path }}</div>
+                  <div>
+                    Branch: <span class="branch">{{ wt.branch_name }}</span> (base
+                    {{ wt.base_commit }})
+                  </div>
+                  <div>
+                    Main working tree clean:
+                    <span class="yes">{{ snapshot()?.mainTreeCleanAfter }}</span>
+                  </div>
+                </div>
+              } @else {
+                <div class="empty">No active worktree provisioned yet.</div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Checking the work -->
+        @if (activeTab() === 'VERIFICATION_DIFF') {
+          <div class="card stack-l">
+            <span class="card-title">
+              <svg class="i"><use href="#i-shield-check" /></svg>
+              {{ activePreset().station4 }}
+            </span>
+
+            @if (snapshot()?.verification; as ver) {
+              <div class="verdict" [attr.data-tone]="ver.verdict === 'PASS' ? 'go' : 'stop'">
+                <div class="score">{{ ver.score }}<small>/100</small></div>
+                <div class="stack" style="gap: 0.3rem">
+                  <span class="card-title tone">Stage 2 verdict: {{ ver.verdict }}</span>
+                  <span class="label mono">{{ ver.provider }}</span>
+                  <div class="body md" [innerHTML]="ver.summary | md"></div>
+                </div>
+              </div>
+
+              @if (ver.deterministicOracles; as oracles) {
+                <div class="well oracles stack" [attr.data-tone]="oracles.passed ? 'go' : 'stop'">
+                  <div class="between">
+                    <span class="label tone">
+                      Stage 1 deterministic oracles: {{ oracles.passedCount }} of {{
+                        oracles.totalCount
+                      }}
+                      in {{ oracles.elapsedMs }}ms, no tokens used
+                    </span>
+                    <span class="label mono">{{ oracles.evidenceHash }}</span>
+                  </div>
+
+                  @for (chk of oracles.checks; track chk.id) {
+                    <div class="check" [attr.data-tone]="chk.status === 'PASS' ? 'go' : 'stop'">
+                      <svg class="i tone"><use [attr.href]="chk.status === 'PASS' ? '#i-check' : '#i-x'" /></svg>
+                      <b style="font-weight: 500">{{ chk.name }}</b>
+                      <span class="md-inline" [innerHTML]="chk.detail | md: 'inline'"></span>
+                    </div>
+                  }
+                </div>
+              }
+            } @else {
+              <div class="empty">Verification results will appear here once the worktree run finishes.</div>
+            }
+
+            @if (snapshot()?.diff; as diffText) {
+              <pre class="diff">@for (line of diffLines(diffText); track $index) {<span [class]="line.kind">{{ line.text || ' ' }}</span>}</pre>
+            }
+          </div>
+        }
+
+        <!-- Fences and skills -->
+        @if (activeTab() === 'FENCES_SKILLS') {
+          <div class="grid-2">
+            <div class="card stack">
+              <div class="between">
+                <span class="card-title">
+                  <svg class="i"><use href="#i-fence" /></svg>
+                  Boundary fences
+                </span>
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  (click)="updateBackendToolbox({ reset_fences: true })"
+                >
+                  Reset fences and skills
+                </button>
+              </div>
+
+              @for (rule of boundaryRules(); track rule.id) {
+                <div class="rule" [attr.data-tone]="rule.state === 'HARD_LOCK' ? 'stop' : 'gate'">
+                  <div class="between">
+                    <strong>{{ rule.id }}</strong>
+                    <span class="tone">{{ rule.state === 'HARD_LOCK' ? 'HARD_LOCK' : 'SOFT_TRIPWIRE' }}</span>
+                  </div>
+                  <p>{{ rule.description }}</p>
+                  <small>scope: {{ rule.scope }} · lens: {{ rule.owner_role }}</small>
+                </div>
+              }
+            </div>
+
+            <div class="card stack">
+              <span class="card-title">
+                <svg class="i"><use href="#i-zap" /></svg>
+                Layer 1 trusted skills
+              </span>
+              @for (sk of trustedSkills(); track sk.id) {
+                <div class="rule" data-tone="go">
+                  <div class="between">
+                    <strong>{{ sk.slug }}</strong>
+                    <span class="tone">{{ sk.id }} · {{ sk.status }}</span>
+                  </div>
+                  <small>{{ sk.path }}</small>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Event log + stream -->
+        @if (activeTab() === 'EVENT_STREAM') {
+          <div class="grid-log">
+            <app-logger></app-logger>
+            <div class="card stream md" [innerHTML]="(streamedMarkdown() || 'No stream output yet.') | md"></div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  <!-- Gemini Live dock and captions -->
+  <div class="dock-stack">
+    @if (isGeminiLiveConnected()) {
+      <div class="captions">
+        <span class="label">{{ liveAudio.selectedModel() }} (16kHz PCM In / 24kHz PCM Out)</span>
+        <span class="heard">
+          Heard: "{{ liveAudio.lastInputTranscript() || 'Say: approve, promote to skill, or reject and harden...' }}"
+        </span>
+        @if (liveAudio.lastOutputTranscript()) {
+          <span class="said">{{ liveAudio.lastOutputTranscript() }}</span>
+        }
+      </div>
+    }
+
+    <div class="dock" [attr.data-tone]="isGeminiLiveConnected() ? 'go' : isGeminiLiveConnecting() ? 'gate' : 'idle'">
+      <app-audio-pulse
+        [active]="isGeminiLiveConnected()"
+        [volume]="liveAudio.volume()"
+        [hover]="isGeminiLiveConnected()"
+      ></app-audio-pulse>
+
+      <div class="dock-state">
+        <b>Gemini 3.8 Live</b>
+        <small>{{ isGeminiLiveConnected() ? 'CONNECTED' : isGeminiLiveConnecting() ? 'CONNECTING...' : 'OFFLINE' }}</small>
+      </div>
+
+      <select
+        class="select"
+        [ngModel]="liveAudio.selectedVoice()"
+        (ngModelChange)="liveAudio.selectedVoice.set($event)"
+        title="Select Gemini Live Prebuilt Voice"
+      >
+        @for (v of objectKeys(liveAudio.availableVoices()); track v) {
+          <option [value]="v">{{ v }} ({{ liveAudio.availableVoices()[v] }})</option>
+        }
+      </select>
+
+      <button
+        type="button"
+        class="round"
+        [class.on]="liveAudio.narrationEnabled()"
+        (click)="liveAudio.toggleNarration()"
+        [attr.aria-pressed]="liveAudio.narrationEnabled()"
+        [title]="liveAudio.narrationEnabled() ? 'Narration: on' : 'Narration: off'"
+        [attr.aria-label]="liveAudio.narrationEnabled() ? 'Narration: on' : 'Narration: off'"
+      >
+        <svg class="i"><use href="#i-audio-lines" /></svg>
+      </button>
+
+      @if (isGeminiLiveConnected()) {
+        <button
+          type="button"
+          class="round"
+          [class.off]="liveAudio.micMuted()"
+          (click)="liveAudio.toggleMicMute()"
+          [attr.aria-pressed]="liveAudio.micMuted()"
+          [title]="liveAudio.micMuted() ? 'Unmute mic' : 'Mute mic'"
+          [attr.aria-label]="liveAudio.micMuted() ? 'Unmute mic' : 'Mute mic'"
+        >
+          <svg class="i"><use [attr.href]="liveAudio.micMuted() ? '#i-mic-off' : '#i-mic'" /></svg>
+        </button>
+        <button
+          type="button"
+          class="round"
+          [class.off]="liveAudio.outputMuted()"
+          (click)="liveAudio.toggleOutputMute()"
+          [attr.aria-pressed]="liveAudio.outputMuted()"
+          [title]="liveAudio.outputMuted() ? 'Unmute audio' : 'Mute audio'"
+          [attr.aria-label]="liveAudio.outputMuted() ? 'Unmute audio' : 'Mute audio'"
+        >
+          <svg class="i"><use [attr.href]="liveAudio.outputMuted() ? '#i-volume-x' : '#i-volume-2'" /></svg>
+        </button>
+        <button
+          type="button"
+          class="round"
+          [class.on]="screenCaptureService.isStreamingSignal()"
+          (click)="toggleScreenCaptureStream()"
+          [attr.aria-pressed]="screenCaptureService.isStreamingSignal()"
+          title="Share Screen with Gemini 3.8 Live"
+          aria-label="Share Screen with Gemini 3.8 Live"
+        >
+          <svg class="i"><use href="#i-monitor" /></svg>
+        </button>
+        <button
+          type="button"
+          class="round"
+          [class.on]="webcamService.isStreamingSignal()"
+          (click)="toggleWebCamStream()"
+          [attr.aria-pressed]="webcamService.isStreamingSignal()"
+          title="Share Webcam with Gemini 3.8 Live"
+          aria-label="Share Webcam with Gemini 3.8 Live"
+        >
+          <svg class="i"><use href="#i-video" /></svg>
+        </button>
+      }
+
+      <button
+        type="button"
+        class="btn btn-sm"
+        [class.btn-go]="!isGeminiLiveConnected()"
+        (click)="toggleGeminiLiveConnection()"
+        [attr.aria-pressed]="isGeminiLiveConnected()"
+      >
+        {{ isGeminiLiveConnected() ? 'Disconnect' : 'Connect live' }}
+      </button>
+    </div>
+  </div>
+</main>

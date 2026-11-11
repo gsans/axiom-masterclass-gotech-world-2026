@@ -1,0 +1,9 @@
+.env
+node_modules/
+.venv/
+__pycache__/
+.angular/
+dist/
+sample-repo/
+.factory-worktrees/
+.DS_Store

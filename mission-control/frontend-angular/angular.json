@@ -1,0 +1,108 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": {
+    "packageManager": "npm"
+  },
+  "newProjectRoot": "projects",
+  "projects": {
+    "gemini-4-adk-live-angular": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:class": {
+          "skipTests": true
+        },
+        "@schematics/angular:component": {
+          "skipTests": true,
+          "type": "component",
+          "addTypeToClassName": false
+        },
+        "@schematics/angular:directive": {
+          "skipTests": true,
+          "type": "directive",
+          "addTypeToClassName": false
+        },
+        "@schematics/angular:guard": {
+          "skipTests": true,
+          "typeSeparator": "."
+        },
+        "@schematics/angular:interceptor": {
+          "skipTests": true,
+          "typeSeparator": "."
+        },
+        "@schematics/angular:pipe": {
+          "skipTests": true,
+          "typeSeparator": "."
+        },
+        "@schematics/angular:resolver": {
+          "skipTests": true,
+          "typeSeparator": "."
+        },
+        "@schematics/angular:service": {
+          "skipTests": true,
+          "type": "service",
+          "addTypeToClassName": false
+        },
+        "@schematics/angular:module": {
+          "typeSeparator": "."
+        }
+      },
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "src/main.ts",
+            "tsConfig": "tsconfig.app.json",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
+            "styles": [
+              "src/styles.css"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "4MB",
+                  "maximumError": "6MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "10kB",
+                  "maximumError": "20kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "gemini-4-adk-live-angular:build:production"
+            },
+            "development": {
+              "buildTarget": "gemini-4-adk-live-angular:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        }
+      }
+    }
+  }
+}

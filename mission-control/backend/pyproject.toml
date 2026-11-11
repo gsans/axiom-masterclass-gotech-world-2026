@@ -1,0 +1,16 @@
+[project]
+name = "axiom-factory-backend"
+version = "0.1.0"
+description = "Minimal PoC backend verifying isolated Git worktrees, claude-agent-sdk MCP pause/resume, OpenAI Codex diff verification, and AG-UI SSE streaming."
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "claude-agent-sdk==0.2.174",
+    "ag-ui-protocol==1.0.0",
+    "openai>=1.50.0",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.9.0",
+    "cryptography<45.0.0",
+    "google-genai>=1.0.0",
+]
